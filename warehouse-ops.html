@@ -1,0 +1,257 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Warehouse Operations Intelligence</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--bg:#e9edf2;--p:#fff;--p2:#f3f5f8;--b:#d3dae3;--t:#1f2933;--m:#64748b;--n:#1e3a5f;--r:#d64545}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#10151c;--p:#19212b;--p2:#202a36;--b:#2e3a48;--t:#e3e9f0;--m:#93a1b3}}
+:root[data-theme=dark]{--bg:#10151c;--p:#19212b;--p2:#202a36;--b:#2e3a48;--t:#e3e9f0;--m:#93a1b3}
+html,body{height:100%;margin:0}body{font:12px/1.35 Inter,system-ui,Arial,sans-serif;background:var(--bg);color:var(--t)}
+#app{display:grid;grid-template-columns:172px minmax(0,1fr);height:100%}
+nav{background:var(--n);overflow:auto;padding:6px 0}nav b{display:block;color:#fff;padding:8px 12px 10px}
+nav a{display:flex;gap:9px;padding:7px 12px;color:#b9c6d8;cursor:pointer;border-left:3px solid transparent}nav a:hover{background:rgba(255,255,255,.06)}nav a.on{color:#fff;background:rgba(255,255,255,.1);border-color:#6fb3e8}
+main{display:flex;flex-direction:column;min-width:0;height:100%}
+header{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;padding:6px 10px;background:var(--p);border-bottom:1px solid var(--b)}header h1{font-size:13px;margin:0;color:var(--n)}
+.mt{color:var(--m)}.mt b{color:var(--t)}
+button,select,input[type=number]{font:inherit;border:1px solid var(--b);background:var(--p);color:var(--t);border-radius:3px;padding:3px 8px;cursor:pointer}button:hover{background:var(--p2)}button.pr{background:var(--n);color:#fff;border-color:var(--n)}
+#kpi{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px;padding:6px 10px}
+.k{background:var(--p);border:1px solid var(--b);padding:4px 8px;border-radius:3px}.k small{color:var(--m);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.k b{font-size:17px}
+#view{flex:1;overflow:auto;padding:0 10px 10px}
+.g2{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:8px}.col{display:flex;flex-direction:column;gap:8px;min-width:0}
+.row{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
+.pn{background:var(--p);border:1px solid var(--b);border-radius:3px;padding:6px 8px;min-width:0;overflow:auto}.pn h4{margin:0 0 5px;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--m)}
+canvas{width:100%;display:block;border:1px solid var(--b);cursor:crosshair}
+table{border-collapse:collapse;width:100%}th{text-align:left;color:var(--m);font-weight:500;border-bottom:1px solid var(--b);padding:2px 5px;white-space:nowrap}td{padding:2px 5px;border-bottom:1px solid var(--b);white-space:nowrap}tr[data-s]{cursor:pointer}tr[data-s]:hover td{background:var(--p2)}
+.sc{max-height:300px}.pl{color:#fff;padding:0 6px;border-radius:8px;font-size:10px}
+.br{display:grid;grid-template-columns:120px 1fr 56px;gap:6px;align-items:center;margin:2px 0}.br div{height:8px;background:var(--p2);display:flex}.br i{display:block;height:100%}.br b{text-align:right}
+.ch{width:100%;height:80px;background:var(--p2)}.kv{display:grid;grid-template-columns:92px 1fr;gap:2px 6px}.kv span{color:var(--m)}
+label{display:block;margin:4px 0}input[type=range]{width:50%;vertical-align:middle}progress{width:70px}.note{color:var(--m);font-size:11px;margin:4px 0}
+</style></head><body><div id="app"><nav id="nav"></nav><main>
+<header><h1>Warehouse Operations Intelligence</h1><span class="mt">WH-BKK-01 · Shift A 06:00–14:00</span><span class="mt">Sim time <b id="h1"></b></span><span class="mt">System <b id="h2"></b></span><span class="mt">Trucks IN <b id="h3"></b> · OUT <b id="h4"></b></span><span class="mt">Alerts <b id="h5"></b></span><span style="flex:1"></span>
+<span class="mt">Speed <select id="sp"><option>1</option><option selected>5</option><option>10</option><option>20</option></select>x</span><button class="pr" id="b1" data-a="run">Start</button><button data-a="step">Step +5m</button><button data-a="reset">Reset</button><button data-a="ly:v3">2D / 3D</button><button data-a="ly:orb">Orbit</button></header>
+<div id="kpi"></div><section id="view"></section></main></div>
+<script>
+const W=900,HT=600,STG=24,OST=24,$=s=>document.querySelector(s);
+const CAR=['Siam Freight','Thai Cold Chain','Lotus Haulage','Eastern Lines','Mekong Cargo'];
+const SK=[['SKU-100','Bottled Water',1,0],['SKU-210','Canned Tomato',1,0],['SKU-305','Cereal Boxes',2,0],['SKU-411','Dairy Yogurt',2,1],['SKU-520','Frozen Peas',2,1],['SKU-633','Paper Towels',3,0],['SKU-714','Pet Food',3,0],['SKU-802','Detergent',3,0]];
+const WT=[.2,.18,.14,.12,.1,.1,.09,.07],SX=s=>70+(s%2)*50,SY=s=>55+(s/2|0)*34,SP={x:250,y:140},OP={x:250,y:380};
+const rt=(a,b)=>[[285,a.y],[285,b.y],[b.x,b.y]];
+const mk=s=>()=>{s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};
+const STR=['FCFS','Appointment Priority','Earliest Available Dock','Priority-Based','Shortest Service Time'];
+const D0={rate:6,inb:50,appt:0,peak:1,docks:4,yard:12,fk:5,w0:3,w1:4,w2:2,w3:2,ppt:10,unl:1.5,cap:240,sla:90,dur:480,seed:7,strat:'FCFS',put:'ABC',ret:'FIFO'};
+const mvp=(o,p,dt,v)=>{let m=v*dt;while(m>0&&p.length){const dx=p[0][0]-o.x,dy=p[0][1]-o.y,d=Math.hypot(dx,dy);if(d>.01)o.h=Math.atan2(dy,dx);if(d<=m){o.x=p[0][0];o.y=p[0][1];m-=d;if(o.dist!=null)o.dist+=d;p.shift()}else{o.x+=dx/d*m;o.y+=dy/d*m;if(o.dist!=null)o.dist+=m;m=0}}};
+function newSim(c){
+const R=mk(c.seed*101+1),A=mk(c.seed*977+5),r=(a,b)=>a+R()*(b-a);
+const S={c,t:0,tr:[],dk:[],fk:[],wk:[],lc:[],pal:[],stg:[],ost:[],pq:[],kq:[],sl:Array(24).fill(null),sch:[],log:[],al:[],alk:{},hist:[],done:[],n:1001,pn:1,fn:0,mc:0,hc:0,cnt:{unl:0,load:0,put:0,pick:0,pack:0,arr:0,dep:0},blk:{gate:0,yard:0,stg:0,pick:0,pack:0,load:0,mis:0},maxY:0,qs:0,heat:new Float32Array(1350)};
+const lg=m=>{S.log.unshift({t:S.t,m});if(S.log.length>150)S.log.pop()};
+const sk=()=>{let x=R(),i=0;while(i<7&&x>WT[i])x-=WT[i++];return i};
+const N=c.docks,nb=N>=6?2:N%2,ni=Math.floor((N-nb)/2);
+for(let i=0;i<N;i++)S.dk.push({i,id:'D'+(i+1),k:i<ni?'IN':i<ni+nb?'BOTH':'OUT',rf:i<2,y:40+(i+.5)*440/N,st:'Available',tr:null,use:0,bt:0,mt:0,man:0});
+for(let i=0;i<60;i++){const z=i/20|0,j=i%20;S.lc.push({id:'ABC'[z]+'-'+(j+1),z,x:305+(j%10)*33,y:70+z*150+(j/10|0)*54,ay:46+z*150,n:[],res:0,cap:Math.max(1,Math.round(c.cap/60)),blk:0,ds:0})}
+const np=(st)=>({id:'P'+S.pn++,s:sk(),q:20+(R()*28|0),lot:'LT-'+(240+S.pn%37),recv:S.t,exp:S.t+r(4,12)*1440,st,loc:null,res:null,fk:null});
+function putLoc(p){const f=l=>!l.blk&&l.n.length+l.res<l.cap,o=S.lc.filter(f);if(!o.length)return null;const u=c.put;
+if(u=='Random')return o[R()*o.length|0];if(u=='Capacity')return o.reduce((a,b)=>b.cap-b.n.length-b.res>a.cap-a.n.length-a.res?b:a);
+const z=u=='Fixed'?p.s%3:SK[p.s][2]-1;if(u=='Fixed'){const l=S.lc[z*20+(p.s*2)%20];if(f(l))return l}return o.find(l=>l.z==z)||o[0]}
+function pickPal(){const cd=S.pal.filter(p=>p.st=='sto'&&!p.res&&!p.loc.blk);if(!cd.length)return null;const s=sk();let cs=cd.filter(p=>p.s==s);if(!cs.length)cs=cd;
+const k=p=>c.ret=='FEFO'&&SK[p.s][3]?p.exp:p.recv;cs.sort((a,b)=>k(a)-k(b));return cs[0]}
+for(let i=0,m=Math.round(60*S.lc[0].cap*.5);i<m;i++){const p=np('sto'),l=putLoc(p);if(!l)break;l.n.push(p);p.loc=l;p.recv=-R()*3000;p.exp=p.recv+r(4,12)*1440;S.pal.push(p)}
+for(let t=0;t<c.dur+30;){const lam=c.rate/60*(t>=120&&t<240?c.peak:1);t+=c.appt?1/lam:-Math.log(1-A())/lam;S.sch.push({t:Math.max(0,t+(c.appt?(A()+A()+A()-1.5)*8:0)),s:c.appt?t:null})}
+S.sch.sort((a,b)=>a.t-b.t);
+S.addW=ro=>{const i=S.wk.filter(w=>w.role==ro).length;S.wk.push({role:ro,i,job:null,t:0,bt:0,x:[214,300+i*30,700+(i%3)*26,214][ro],y:[60+i*24,38,90+(i/3|0)*34,300+i*24][ro]})};
+S.addF=()=>{const i=S.fn++;S.fk.push({i,id:'FL-'+(i+1),x:240+(i%10)*18,y:525,h:0,q:[],bt:0,dist:0,done:0,off:0,ot:0,man:0,cy:null})};
+S.setW=(ro,n)=>{let a=S.wk.filter(w=>w.role==ro);while(a.length<n){S.addW(ro);a=S.wk.filter(w=>w.role==ro)}while(a.length>n){const w=a.slice().reverse().find(w=>!w.job);if(!w)break;S.wk.splice(S.wk.indexOf(w),1);a=S.wk.filter(w=>w.role==ro)}};
+S.setF=n=>{while(S.fk.length<n)S.addF();while(S.fk.length>n){const f=S.fk.slice().reverse().find(f=>!f.q.length);if(!f)break;S.fk.splice(S.fk.indexOf(f),1)}};
+[0,1,2,3].forEach(i=>S.setW(i,c['w'+i]));S.setF(c.fk);
+S.spawn=(a,dir)=>{dir=dir||(R()*100<c.inb?'IN':'OUT');const rf=dir=='IN'&&R()<.18;const x={id:'T-'+S.n++,car:CAR[R()*5|0],dir,type:rf?'Reefer':'Dry',cargo:rf?'Chilled':'Ambient',n:Math.max(2,Math.round(c.ppt*(.6+R()*.8))),pri:R()<.2?1:R()<.5?2:3,sched:a.s==null?S.t:a.s,wk:a.s==null,arr:S.t,st:'gq',x:40,y:HT+30,h:-1.57,path:[],slot:-1,dock:null,un:0,ld:0,req:0,cur:0};S.tr.push(x);S.cnt.arr++;lg(x.id+' ('+dir+', '+x.n+' pallets) arrives at gate')};
+const al=(k,sev,ent,loc,msg,on,sel)=>{const a=S.alk[k];if(on&&!a){const o={k,sev,t:S.t,ent,loc,msg,sel,st:'Active'};S.al.unshift(o);S.alk[k]=o;if(S.al.length>200)S.al.pop()}else if(!on&&a){a.st='Cleared';delete S.alk[k]}else if(a)a.sev=sev};
+const fw=ro=>S.wk.find(w=>w.role==ro&&!w.job),slotFree=()=>{for(let i=0;i<c.yard;i++)if(!S.sl[i])return i;return -1};
+const leave=x=>{const d=x.dock;d.tr=null;d.use++;x.st='ex';x.path=[[150,d.y],[150,HT+40]];lg(x.id+' departs dock '+d.id)};
+function asg(f){const L=S.ost.find(p=>!p.fk&&p.res.st=='wk'),U=S.stg.find(p=>!p.fk),hi=S.stg.length>STG*.75;
+const put=()=>{if(!U)return 0;const l=putLoc(U);if(!l)return 0;U.fk=f;l.res++;f.q.push({pts:rt(f,SP),w:.3,act:()=>{S.stg.splice(S.stg.indexOf(U),1);U.st='car';f.cy=U}},{pts:rt(SP,{x:l.x+16,y:l.ay}),w:.3,act:()=>{l.res--;l.n.push(U);U.loc=l;U.st='sto';U.fk=null;f.cy=null;f.done++;S.cnt.put++}});return 1};
+const load=()=>{if(!L)return 0;L.fk=f;const d=L.res.dock;f.q.push({pts:rt(f,OP),w:.3,act:()=>{S.ost.splice(S.ost.indexOf(L),1);L.st='car';f.cy=L}},{pts:rt(OP,{x:208,y:d.y}),w:.3,act:()=>{L.st='ship';L.res.ld++;f.cy=null;f.done++;S.cnt.load++;S.pal.splice(S.pal.indexOf(L),1)}});return 1};
+hi?(put()||load()):(load()||put())}
+function minute(){const t=S.t;
+for(const x of S.tr){if(x.dir=='OUT'&&['yd','td','wk'].includes(x.st))while(x.req<x.n){const p=pickPal();if(!p)break;p.res=x;x.req++;S.pq.push(p)}
+const w=t-x.arr,wt=['gq','chk','yd'].includes(x.st);al('w'+x.id,w>60?'Critical':'Warning','Truck '+x.id,x.st=='yd'?'Yard':'Gate','Waiting '+(w|0)+' min',wt&&w>30,'truck:'+x.id);
+if(x.dir=='OUT'&&x.st!='ex'){const l=c.sla-w;al('s'+x.id,l<0?'Critical':'Warning','Shipment '+x.id,x.dock?x.dock.id:'Yard',l<0?'Delayed '+(-l|0)+' min':'Deadline in '+(l|0)+' min',l<15,'truck:'+x.id)}}
+for(const d of S.dk)al('d'+d.id,d.st=='Blocked'?'Critical':'Warning','Dock '+d.id,'Dock wall','Dock '+d.st.toLowerCase(),d.st=='Blocked'||d.st=='Maintenance','dock:'+d.i);
+const oc=S.sl.slice(0,c.yard).filter(Boolean).length;al('yd',oc>=c.yard?'Critical':'Warning','Yard','Waiting yard',oc+'/'+c.yard+' slots used',oc>=.9*c.yard,'zone:yard');
+for(let z=0;z<3;z++){const l=S.lc.filter(l=>l.z==z),f=l.reduce((a,b)=>a+b.n.length,0)/l.reduce((a,b)=>a+b.cap,0);al('z'+z,'Warning','Zone '+'ABC'[z],'Storage',(f*100|0)+'% full',f>=.95,'zone:stg')}
+al('stg','Warning','Staging','Receiving','Inbound exceeds putaway capacity',S.stg.length>=STG*.9,'zone:stg');
+for(const f of S.fk)al('f'+f.id,'Warning',f.id,'Equipment','Forklift unavailable',!!f.off,'fk:'+f.i);
+const q=S.tr.filter(x=>['gq','chk','yd'].includes(x.st)).length;al('cg','Critical','Gate & yard','Gate','Queue of '+q+' trucks',q>=8,'zone:yard');
+for(const l of S.lc)al('x'+l.id,'Warning','Location '+l.id,'Zone '+'ABC'[l.z],'Inventory discrepancy',!!l.ds,'loc:'+l.id);
+if(R()<.01){const l=S.lc.filter(l=>l.n.length&&!l.ds);if(l.length){const o=l[R()*l.length|0];o.ds=1;lg('Inventory discrepancy at '+o.id)}}}
+S.step=dt=>{const t=S.t+=dt;
+while(S.sch.length&&S.sch[0].t<=t)S.spawn(S.sch.shift());
+const tr=S.tr,gq=tr.filter(x=>x.st=='gq');gq.forEach((x,i)=>x.path=[[40,510+i*22]]);
+if(!tr.some(x=>x.st=='chk')&&gq.length){const s=slotFree();if(s>=0){const x=gq[0];x.st='chk';x.tc=t;x.tw=r(1.5,4.5);x.path=[[40,485]];x.slot=s;S.sl[s]=x}}
+for(const x of tr.slice()){const pp=x.path;if(pp.length)mvp(x,pp,dt,300);
+const idle=!x.path.length;
+if(x.st=='chk'&&idle&&(x.tw-=dt)<=0){x.st='yd';x.ty=t;const s=x.slot;x.path=[[40,470],[SX(s),470],[SX(s),SY(s)]];lg(x.id+' checked in, to yard')}
+else if(x.st=='td'&&idle){x.st='wk';x.tk=t;lg(x.id+(x.dir=='IN'?' unloading at ':' loading at ')+x.dock.id)}
+else if(x.st=='wk'){if(x.dir=='IN'){if(x.un<x.n&&!x.cur&&S.stg.length<STG){const w=fw(0);if(w){x.cur=1;w.job='Unload '+x.id;w.t=c.unl*(.7+.6*R());w.fin=()=>{const p=np('stg');p.src=x.id;S.pal.push(p);S.stg.push(p);x.un++;x.cur=0;S.cnt.unl++}}}
+if(x.un>=x.n&&!x.cur){x.st='doc';x.tw=r(3,6);x.dc=1}}else if(x.ld>=x.n){x.st='doc';x.dc=0}}
+else if(x.st=='doc'){if(x.dir=='IN'){if((x.tw-=dt)<=0)leave(x)}else if(!x.dc){const w=fw(3);if(w){x.dc=1;w.job='Docs '+x.id;w.t=r(2,4);w.fin=()=>{x.dc=2}}}else if(x.dc==2)leave(x)}
+else if(x.st=='ex'&&idle){S.done.push({id:x.id,dir:x.dir,tat:t-x.arr,gw:x.tc-x.arr,dw:x.tdk-x.ty,late:t-x.arr>c.sla,t});S.cnt.dep++;tr.splice(tr.indexOf(x),1);al('w'+x.id,0,0,0,0,false);al('s'+x.id,0,0,0,0,false);lg(x.id+' exits gate, turnaround '+Math.round(t-x.arr)+' min')}}
+const ws=tr.filter(x=>x.st=='yd');
+if(ws.length){const st=c.strat;ws.sort((a,b)=>st=='Appointment Priority'?a.sched-b.sched:st=='Priority-Based'?a.pri-b.pri||a.arr-b.arr:st=='Shortest Service Time'?a.n-b.n:a.arr-b.arr);
+for(const x of ws){const f=S.dk.filter(d=>d.st=='Available'&&(d.k=='BOTH'||d.k==x.dir)&&(x.type!='Reefer'||d.rf));if(!f.length)continue;
+if(st=='Earliest Available Dock')f.sort((a,b)=>(a.k=='BOTH')-(b.k=='BOTH')||a.use-b.use);const d=f[0];d.st='Reserved';d.tr=x;x.dock=d;x.st='td';x.tdk=t;S.sl[x.slot]=null;x.path=[[150,x.y],[150,d.y],[176,d.y]];lg(x.id+' assigned to '+d.id+' ('+st+')')}}
+for(const d of S.dk){if(d.mt>0)d.mt-=dt;if(d.tr){d.st={td:'Reserved',wk:'Occupied',doc:'Processing'}[d.tr.st]||'Occupied';d.bt+=dt}else{d.st=d.mt>0?'Maintenance':d.man?'Blocked':'Available';if(d.st=='Available'&&R()<.0008*dt){d.mt=r(20,45);lg(d.id+' maintenance stop')}}}
+for(const f of S.fk){if(f.ot>0)f.ot-=dt;
+if(f.q.length){const s=f.q[0];if(s.pts.length)mvp(f,s.pts,dt,260);else if((s.w-=dt)<=0){s.act();f.q.shift()}f.bt+=dt;const i=(f.y/20|0)*45+(f.x/20|0);if(i>=0&&i<1350)S.heat[i]+=dt*.5}
+else{f.off=f.man||f.ot>0?1:0;if(!f.off&&R()<.0004*dt){f.ot=r(15,30);lg(f.id+' breakdown')}if(!f.off)asg(f)}}
+while(S.pq.length){const w=fw(1);if(!w)break;const p=S.pq.shift();w.job='Pick '+p.id;w.t=r(2,3.5);w.fin=()=>{p.loc.n.splice(p.loc.n.indexOf(p),1);p.loc=null;p.st='pk';S.kq.push(p);S.cnt.pick++}}
+while(S.kq.length&&S.ost.length<OST){const w=fw(2);if(!w)break;const p=S.kq.shift();w.job='Pack '+p.id;w.t=r(1.5,3);w.fin=()=>{p.st='ost';S.ost.push(p);S.cnt.pack++}}
+for(const w of S.wk)if(w.job){w.bt+=dt;if((w.t-=dt)<=0){w.fin();w.job=null}}
+const wq=tr.filter(x=>x.st=='yd').length,q=gq.length+wq+tr.filter(x=>x.st=='chk').length,B=S.blk;
+B.gate+=gq.length*dt;B.yard+=wq*dt;B.stg+=S.stg.length*dt;B.pick+=S.pq.length*dt;B.pack+=S.kq.length*dt;B.load+=S.ost.length*dt;if(wq&&S.dk.some(d=>d.st=='Available'))B.mis+=dt;
+S.qs+=q*dt;S.maxY=Math.max(S.maxY,S.sl.filter(Boolean).length);
+for(const x of tr)if(['gq','chk','yd'].includes(x.st)){const i=(x.y/20|0)*45+(x.x/20|0);if(i>=0&&i<1350)S.heat[i]+=dt}
+S.mc+=dt;if(S.mc>=1){S.mc-=1;minute()}
+S.hc+=dt;if(S.hc>=5){S.hc-=5;const k=K(S);S.hist.push({t,arr:S.cnt.arr,dep:S.cnt.dep,q:k.wt,y:S.sl.filter(Boolean).length,rc:S.cnt.unl,dp:S.cnt.load,du:k.du,fu:k.fu,wu:k.wu,stg:S.stg.length,pq:S.pq.length,kq:S.kq.length,ost:S.ost.length})}};
+return S}
+const K=S=>{const t=Math.max(S.t,1),h=t/60,ds=S.done,tt=ds.map(x=>x.tat).sort((a,b)=>a-b),av=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:0,
+on=S.tr.filter(x=>x.st!='gq'),wt=S.tr.filter(x=>['gq','chk','yd'].includes(x.st)),oo=S.tr.filter(x=>x.dir=='OUT'),
+del=ds.filter(x=>x.late&&x.dir=='OUT').length+oo.filter(x=>S.t-x.arr>S.c.sla).length,on_=ds.filter(x=>x.dir=='OUT').length+oo.length,N=S.dk.length,
+st=S.lc.reduce((a,l)=>a+l.n.length,0)/S.lc.reduce((a,l)=>a+l.cap,0),
+bu=a=>a.length?a.reduce((x,o)=>x+o.bt,0)/(a.length*t):0;
+return{on:on.length,wt:wt.length,dk:S.dk.filter(d=>d.tr).length,N,tat:av(tt),p90:tt[Math.floor(tt.length*.9)]||0,inT:S.cnt.unl/h,outT:S.cnt.load/h,util:st,del,gw:av(ds.map(x=>x.gw)),dw:av(ds.map(x=>x.dw)),otd:ds.length?100*(1-ds.filter(x=>x.late).length/ds.length):100,q:S.qs/t,maxY:S.maxY,du:bu(S.dk),fu:bu(S.fk),wu:bu(S.wk),pph:(S.cnt.unl+S.cnt.load)/h,dr:100*del/Math.max(1,on_),cost:S.wk.length*18*h+S.fk.length*10*h+N*30*h+(S.blk.gate+S.blk.yard)+del*120}};
+const runSim=c=>{const s=newSim({...c});while(s.t<c.dur-1e-6)s.step(.1);return K(s)};
+//UI
+let C={...D0},S=newSim(C),run=0,spd=5,acc=0,tab='ov',sel='',SCR={},CMP=null,LY={heat:0,routes:1,v3:1,orb:0};
+const fm=m=>{m=Math.floor(m)%1440;return String(m/60|0).padStart(2,'0')+':'+String(m%60).padStart(2,'0')},pc=v=>Math.round(v*100)+'%',f1=v=>(+v).toFixed(1);
+const DC={Available:'#2e9d5b',Reserved:'#2f6fb3',Occupied:'#1a9a8f',Processing:'#1a9a8f',Blocked:'#d64545',Maintenance:'#e0a21b'},SV={Critical:'#d64545',Warning:'#e0a21b',Info:'#2f6fb3'};
+const pill=(t,c)=>`<span class="pl" style="background:${c}">${t}</span>`,tr_=(c,s)=>`<tr${s?` data-s="${s}"`:''}>${c.map(x=>`<td>${x}</td>`).join('')}</tr>`;
+const T=(h,r)=>`<table><thead><tr>${h.map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>${r.join('')}</tbody></table>`,P=(t,b,x='')=>`<div class="pn ${x}"><h4>${t}</h4>${b}</div>`;
+const LB=x=>({gq:x.path.length&&Math.hypot(x.path[0][0]-x.x,x.path[0][1]-x.y)>15?'Approaching Gate':'Check-in Queue',chk:'Check-in',yd:x.dir=='IN'?'Waiting for Dock':'Waiting for Loading',td:'Dock Assigned',wk:x.dir=='IN'?'Unloading':'Loading',doc:x.dir=='IN'?'Receiving Inspection':'Documentation',ex:x.dir=='IN'?'Departure':'Gate-out'})[x.st];
+const sc=x=>S.t-x.arr>C.sla?'#d64545':['gq','chk','yd'].includes(x.st)?'#e0a21b':x.st=='ex'?'#2e9d5b':x.dir=='IN'?'#2f6fb3':'#1a9a8f';
+const B=rows=>rows.map(([l,v,m,c,f])=>`<div class="br"><span>${l}</span><div>${Array.isArray(v)?v.map(([a,k])=>`<i style="width:${Math.min(100,a/m*100)}%;background:${k}"></i>`).join(''):`<i style="width:${Math.min(100,v/m*100)}%;background:${c}"></i>`}</div><b>${f??Math.round(Array.isArray(v)?v.reduce((a,b)=>a+b[0],0):v)}</b></div>`).join('');
+const L=(ss,h=80)=>{const n=Math.max(2,...ss.map(s=>s.d.length)),m=Math.max(1,...ss.flatMap(s=>s.d));return`<svg class="ch" viewBox="0 0 300 ${h}" preserveAspectRatio="none">`+[.25,.5,.75].map(f=>`<line x1="0" x2="300" y1="${h*f}" y2="${h*f}" stroke="#8883" stroke-width=".5"/>`).join('')+ss.map(s=>`<polyline fill="none" stroke="${s.c}" stroke-width="1.5" vector-effect="non-scaling-stroke" points="${s.d.map((v,i)=>(i/(n-1)*300).toFixed(1)+','+(h-2-v/m*(h-6)).toFixed(1)).join(' ')}"/>`).join('')+`</svg><div class="note">${ss.map(s=>`<span style="color:${s.c}">■ ${s.n||''}</span>`).join(' ')} max ${f1(m)}</div>`};
+const ser=(k,c,n,f=1)=>({d:S.hist.map(h=>h[k]*f),c,n});
+const K_=()=>K(S);
+function AL(n){return T(['Sev','Time','Entity','Loc','Detail','State'],S.al.slice(0,n).map(a=>tr_([pill(a.sev,SV[a.sev]),fm(360+a.t),a.ent,a.loc,a.msg,a.st=='Active'?'Active':'Cleared'],a.sel)))}
+function UT(){const k=K_();return B([['Dock util',k.du,1,'#2f6fb3',pc(k.du)],['Forklift util',k.fu,1,'#1a9a8f',pc(k.fu)],['Workforce util',k.wu,1,'#1a9a8f',pc(k.wu)],['Storage',k.util,1,k.util>.9?'#e0a21b':'#2e9d5b',pc(k.util)],['Yard',S.sl.slice(0,C.yard).filter(Boolean).length,C.yard,'#e0a21b']])}
+function DT(){const [k,id]=sel.split(':');let h='';const kv=a=>`<div class="kv">${a.map(([x,y])=>`<span>${x}</span><b>${y}</b>`).join('')}</div>`;
+if(k=='truck'){const x=S.tr.find(y=>y.id==id);if(!x)return'<div class="note">Truck has left the site.</div>';return kv([['Truck',x.id],['Carrier',x.car],['Type / dir',x.type+' · '+x.dir],['Cargo',x.cargo],['Pallets',x.n+(x.dir=='OUT'?' (reserved '+x.req+', loaded '+x.ld+')':' (unloaded '+x.un+')')],['Priority',['High','Medium','Low'][x.pri-1]],['Scheduled',x.wk?'Walk-in':fm(360+x.sched)],['Arrived',fm(360+x.arr)],['Status',pill(LB(x),sc(x))],['Dock',x.dock?x.dock.id:'—'],['Dwell',Math.round(S.t-x.arr)+' / SLA '+C.sla+' min']])+`<button data-a="tr:exp:${x.id}">Expedite (High priority)</button>`}
+if(k=='dock'){const d=S.dk[id];if(!d)return'';return kv([['Dock',d.id],['Supports',d.k+(d.rf?' · reefer':'')],['Status',pill(d.st,DC[d.st])],['Truck',d.tr?d.tr.id:'—'],['Trucks served',d.use],['Utilization',pc(d.bt/Math.max(S.t,1))]])+`<button data-a="dk:blk:${d.i}">${d.man?'Unblock':'Block'}</button> <button data-a="dk:mt:${d.i}">Maintenance 30m</button>`}
+if(k=='fk'){const f=S.fk[id];if(!f)return'';return kv([['Unit',f.id],['State',f.off?'Offline':f.q.length?'Working':'Idle'],['Carrying',f.cy?f.cy.id:'—'],['Tasks done',f.done],['Distance',Math.round(f.dist*.15)+' m'],['Utilization',pc(f.bt/Math.max(S.t,1))]])+`<button data-a="fk:off:${f.i}">${f.man?'Bring online':'Take offline'}</button>`}
+if(k=='loc'){const l=S.lc.find(y=>y.id==id);if(!l)return'';return kv([['Location',l.id],['Zone','ABC'[l.z]],['Pallets',l.n.length+' / '+l.cap],['Contents',l.n.map(p=>SK[p.s][0]).join(', ')||'empty'],['Status',l.blk?'Blocked':l.ds?'Discrepancy':'OK']])+`<button data-a="lc:blk:${l.id}">${l.blk?'Unblock':'Block'}</button> ${l.ds?`<button data-a="lc:cnt:${l.id}">Cycle count</button>`:''}`}
+if(k=='pal'){const p=S.pal.find(y=>y.id==id);if(!p)return'<div class="note">Pallet shipped.</div>';return kv([['Pallet',p.id],['SKU',SK[p.s][0]+' '+SK[p.s][1]],['Qty',p.q],['Lot',p.lot],['Received',p.recv<0?'Prior day':fm(360+p.recv)],['Expiry',SK[p.s][3]?'in '+Math.round((p.exp-S.t)/1440)+' d':'n/a'],['Location',p.loc?p.loc.id:p.st],['Reserved',p.res?p.res.id:'—']])}
+if(k=='zone')return kv([['Gate queue',S.tr.filter(x=>x.st=='gq').length],['Yard',S.sl.slice(0,C.yard).filter(Boolean).length+'/'+C.yard],['Inbound staging',S.stg.length+'/'+STG],['Outbound staging',S.ost.length+'/'+OST]]);
+return'<div class="note">Click a truck, dock, forklift, storage location or alert to inspect it.</div>'}
+const V={
+ov:()=>`<div class="g2"><div class="col"><div id="ms"></div><div class="row">${P('Arrivals vs departures',L([ser('arr','#2f6fb3','arrivals'),ser('dep','#2e9d5b','departures')]))}${P('Queue & yard',L([ser('q','#e0a21b','waiting'),ser('y','#64748b','yard')]))}${P('Pallets in / out (cum.)',L([ser('rc','#1a9a8f','received'),ser('dp','#2e9d5b','dispatched')]))}${P('Utilization',UT())}</div></div><div class="col">${P('Active alerts',AL(10),'sc')}${P('Detail',DT())}</div></div>`,
+lw:()=>`<div class="g2"><div id="ms"></div><div class="col">${P('Layers',`<button class="${LY.heat?'pr':''}" data-a="ly:heat">Congestion heatmap</button> <button class="${LY.routes?'pr':''}" data-a="ly:routes">Forklift routes</button>`)}${P('Legend','<div class="note"><span style="color:#2f6fb3">■</span> inbound/receiving · <span style="color:#1a9a8f">■</span> outbound/active · <span style="color:#2e9d5b">■</span> completed/ready · <span style="color:#e0a21b">■</span> waiting/near capacity · <span style="color:#d64545">■</span> delayed/critical · <span style="color:#999">■</span> idle</div>')}${P('Detail',DT())}${P('Alerts',AL(6),'sc')}</div></div>`,
+tm:()=>{const lc={};S.tr.forEach(x=>lc[LB(x)]=(lc[LB(x)]||0)+1);return`<div class="pn"><h4>Truck lifecycle</h4>${B(Object.entries(lc).map(([k,v])=>[k,v,Math.max(5,S.tr.length),'#2f6fb3']))}<button data-a="tr:add:IN">+ Unexpected inbound</button> <button data-a="tr:add:OUT">+ Unexpected outbound</button></div><div class="pn" style="margin-top:8px"><h4>Trucks (click to inspect)</h4>${T(['ID','Carrier','Type','Dir','Cargo','Pallets','Pri','Appt','Arrived','Status','Dock','Dwell'],[...S.tr.map(x=>tr_([x.id,x.car,x.type,x.dir,x.cargo,x.n,['H','M','L'][x.pri-1],x.wk?'Walk-in':fm(360+x.sched),fm(360+x.arr),pill(LB(x),sc(x)),x.dock?x.dock.id:'—',Math.round(S.t-x.arr)+'m'],'truck:'+x.id)),...S.sch.slice(0,4).map(a=>tr_(['upcoming','','','','','','',a.s==null?'Walk-in':fm(360+a.s),fm(360+a.t),pill('Scheduled','#64748b'),'',''])),...S.done.slice(-6).reverse().map(x=>tr_([x.id,'','',x.dir,'','','','','',pill('Departed','#2e9d5b'),'',Math.round(x.tat)+'m']))])}</div><div class="pn" style="margin-top:8px"><h4>Detail</h4>${DT()}</div>`},
+ds:()=>{const rows=S.dk.map(d=>{const x=d.tr,pr=x?x.dir=='IN'?x.un/x.n:x.ld/x.n:0,eta=x?x.dir=='IN'?(x.n-x.un)*C.unl:(x.n-x.ld)*3:0,q=S.tr.filter(y=>y.st=='yd'&&(d.k=='BOTH'||d.k==y.dir)&&(y.type!='Reefer'||d.rf)).length;return tr_([d.id,d.k,d.rf?'Yes':'—',pill(d.st,DC[d.st]),x?x.id:'—',x?fm(360+S.t+eta):'—',`<progress value="${pr}" max="1"></progress>`,q,pc(d.bt/Math.max(S.t,1)),`<button data-a="dk:blk:${d.i}">${d.man?'Unblock':'Block'}</button> <button data-a="dk:mt:${d.i}">Maint.</button>`],'dock:'+d.i)});
+return`<div class="pn"><h4>Assignment strategy (applies live; incompatible trucks never assigned: reefer needs reefer dock, IN/OUT docks respected)</h4>${STR.map(s=>`<button class="${C.strat==s?'pr':''}" data-a="sg:${s}">${s}</button>`).join(' ')} <button data-a="cmp">Compare all strategies (same seed)</button></div><div class="pn" style="margin-top:8px"><h4>Docks</h4>${T(['Dock','Supports','Reefer','Status','Truck','ETA done','Progress','Queue','Util','Actions'],rows)}</div>${CMP?P('Strategy comparison (full-shift headless runs, seed '+C.seed+')',T(['Strategy','Avg TAT','P90 TAT','Dock wait','Delay rate','On-time','Pallets/hr'],STR.map(s=>tr_([s,f1(CMP[s].tat),f1(CMP[s].p90),f1(CMP[s].dw),f1(CMP[s].dr)+'%',f1(CMP[s].otd)+'%',f1(CMP[s].pph)]))),'" style="margin-top:8px'):''}<div class="pn" style="margin-top:8px"><h4>Detail</h4>${DT()}</div>`},
+iv:()=>{const rows=SK.map((s,i)=>{const ps=S.pal.filter(p=>p.s==i&&p.loc),q=ps.reduce((a,p)=>a+p.q,0),rs=ps.filter(p=>p.res),rq=rs.reduce((a,p)=>a+p.q,0);return tr_([s[0],s[1],'ABC'[s[2]-1],s[3]?'FEFO':'—',q,ps.length,rq,q-rq,ps.length?[...ps].sort((a,b)=>a.recv-b.recv)[0].lot:'—',ps.length<4?pill('Low stock','#e0a21b'):pill('OK','#2e9d5b')])});
+const zs=[0,1,2].map(z=>{const l=S.lc.filter(l=>l.z==z),n=l.reduce((a,b)=>a+b.n.length,0),c=l.reduce((a,b)=>a+b.cap,0);return['Zone '+'ABC'[z],n,c,n/c>.9?'#e0a21b':'#1a9a8f',n+'/'+c]});
+const sl=(k,o)=>`<select data-k="${k}">${o.map(v=>`<option${C[k]==v?' selected':''}>${v}</option>`).join('')}</select>`;
+return`<div class="row">${P('Storage rules (live)',`<label>Putaway ${sl('put',['ABC','Fixed','Random','Capacity'])}</label><label>Retrieval ${sl('ret',['FIFO','FEFO'])}</label><div class="note">ABC puts fast movers in Zone A; FEFO picks earliest-expiry perishables first. Capacity per location is enforced.</div>`)}${P('Storage capacity by zone',B(zs)+`<div class="note">Blocked locations: ${S.lc.filter(l=>l.blk).length} · Discrepancies: ${S.lc.filter(l=>l.ds).length}</div>`)}${P('Detail',DT())}</div><div class="pn" style="margin-top:8px"><h4>SKU inventory</h4>${T(['SKU','Description','ABC','Expiry','Qty','Pallets','Reserved','Available','Oldest lot','Status'],rows)}</div><div class="pn sc" style="margin-top:8px"><h4>Pallets in storage (first 30, click)</h4>${T(['Pallet','SKU','Qty','Lot','Location','Reserved'],S.pal.filter(p=>p.loc).slice(0,30).map(p=>tr_([p.id,SK[p.s][0],p.q,p.lot,p.loc.id,p.res?p.res.id:'—'],'pal:'+p.id)))}</div>`},
+rc:()=>`<div class="row">${P('Inbound backlog by stage',B([['Unloading at docks',S.tr.filter(x=>x.dir=='IN'&&x.st=='wk').length,5,'#2f6fb3'],['Inbound staging',S.stg.length,STG,S.stg.length>STG*.8?'#e0a21b':'#1a9a8f'],['Putaway in progress',S.fk.filter(f=>f.cy&&f.cy.st=='car'&&!f.cy.res).length,C.fk,'#1a9a8f']])+`<div class="note">Received ${S.cnt.unl} · Put away ${S.cnt.put} pallets</div>`)}${P('Receiving workers',B(S.wk.filter(w=>w.role==0).map((w,i)=>['Receiver '+(i+1),w.job?1:0,1,'#2f6fb3',w.job||'idle'])))}</div><div class="pn" style="margin-top:8px"><h4>Inbound trucks</h4>${T(['Truck','Dock','Status','Unloaded','Cargo'],S.tr.filter(x=>x.dir=='IN').map(x=>tr_([x.id,x.dock?x.dock.id:'—',pill(LB(x),sc(x)),x.un+'/'+x.n,x.cargo],'truck:'+x.id)))}</div><div class="pn sc" style="margin-top:8px"><h4>Receiving log</h4>${T(['Time','Event'],S.log.filter(l=>/unload|exits|assigned/.test(l.m)).slice(0,14).map(l=>tr_([fm(360+l.t),l.m])))}</div>`,
+pp:()=>`<div class="row">${P('Backlog by stage',B([['To pick',S.pq.length,20,'#e0a21b'],['To pack',S.kq.length,20,'#e0a21b'],['Outbound staging',S.ost.length,OST,'#2e9d5b']])+`<div class="note">Picked ${S.cnt.pick} · Packed ${S.cnt.pack}</div>`)}${P('Pickers & packers',B(S.wk.filter(w=>w.role==1||w.role==2).map(w=>[(w.role==1?'Picker ':'Packer ')+(w.i+1),w.job?1:0,1,w.role==1?'#1a9a8f':'#2f6fb3',w.job||'idle'])))}</div><div class="pn" style="margin-top:8px"><h4>Orders (outbound trucks)</h4>${T(['Truck','Pallets','Reserved','Picking','Packing','Staged','Loaded','Status'],S.tr.filter(x=>x.dir=='OUT').map(x=>tr_([x.id,x.n,x.req,S.pq.filter(p=>p.res==x).length,S.kq.filter(p=>p.res==x).length,S.ost.filter(p=>p.res==x).length,x.ld,pill(LB(x),sc(x))],'truck:'+x.id)))}</div>`,
+dp:()=>{const o=S.tr.filter(x=>x.dir=='OUT'),d=S.done.filter(x=>x.dir=='OUT');return`<div class="pn"><h4>Dispatch status</h4>${B([['Shipped on time',d.filter(x=>!x.late).length,Math.max(5,d.length),'#2e9d5b'],['Shipped late',d.filter(x=>x.late).length,Math.max(5,d.length),'#d64545'],['Pallets dispatched',S.cnt.load,Math.max(20,S.cnt.load),'#1a9a8f']])}</div><div class="pn" style="margin-top:8px"><h4>Open shipments</h4>${T(['Truck','Carrier','Pri','Due','Time left','Loaded','Status'],o.map(x=>{const l=C.sla-(S.t-x.arr);return tr_([x.id,x.car,['H','M','L'][x.pri-1],fm(360+x.arr+C.sla),l<0?pill('Late '+(-l|0)+'m','#d64545'):(l|0)+' min',x.ld+'/'+x.n,pill(LB(x),sc(x))],'truck:'+x.id)}))}</div>`},
+wf:()=>{const t=Math.max(S.t,1),nm=['Receiving','Picking','Packing','Dispatch'],sl=(k,l)=>`<label>${l} <input type="range" data-k="${k}" min="1" max="10" value="${C[k]}"><b>${C[k]}</b></label>`;
+return`<div class="row">${P('Allocation (live)',sl('fk','Forklifts')+nm.map((n,i)=>sl('w'+i,n)).join(''))}${P('Worker utilization by role',B(nm.map((n,i)=>{const w=S.wk.filter(x=>x.role==i);return[n,w.reduce((a,x)=>a+x.bt,0)/(Math.max(1,w.length)*t),1,'#1a9a8f',pc(w.reduce((a,x)=>a+x.bt,0)/(Math.max(1,w.length)*t))]})))}${P('Detail',DT())}</div><div class="pn" style="margin-top:8px"><h4>Forklifts</h4>${T(['Unit','State','Carrying','Tasks','Tasks/hr','Distance','Util','Action'],S.fk.map(f=>tr_([f.id,f.off?pill('Offline','#d64545'):f.q.length?pill('Working','#1a9a8f'):pill('Idle','#999'),f.cy?f.cy.id:'—',f.done,f1(f.done/(t/60)),Math.round(f.dist*.15)+' m',pc(f.bt/t),`<button data-a="fk:off:${f.i}">${f.man?'Online':'Offline'}</button>`],'fk:'+f.i)))}</div>`},
+an:()=>{const k=K_(),bins=[30,45,60,75,90,120,999],hc=bins.map((b,i)=>S.done.filter(x=>x.tat<b&&x.tat>=(bins[i-1]||0)).length),mx=Math.max(1,...S.heat),hm=[...S.heat].map((v,i)=>v>mx*.04?`<rect x="${i%45}" y="${i/45|0}" width="1" height="1" fill="#d64545" opacity="${(v/mx*.9).toFixed(2)}"/>`:'').join(''),bl=S.blk;
+return`<div class="row">${P('Turnaround distribution (min)',B(hc.map((v,i)=>[(bins[i-1]||0)+'–'+(bins[i]==999?'+':bins[i]),v,Math.max(3,...hc),'#2f6fb3'])))}${P('Truck waits',B([['Avg turnaround',k.tat,120,'#2f6fb3',f1(k.tat)],['Avg gate wait',k.gw,40,'#e0a21b',f1(k.gw)],['Avg dock wait',k.dw,40,'#e0a21b',f1(k.dw)],['On-time %',k.otd,100,'#2e9d5b',f1(k.otd)]]))}${P('Dock utilization',B(S.dk.map(d=>[d.id+' '+d.k,d.bt/Math.max(S.t,1),1,'#2f6fb3',pc(d.bt/Math.max(S.t,1))])))}${P('Forklift utilization',B(S.fk.map(f=>[f.id,f.bt/Math.max(S.t,1),1,'#1a9a8f',pc(f.bt/Math.max(S.t,1))])))}</div><div class="row" style="margin-top:8px">${P('Queue length over time',L([ser('q','#e0a21b','waiting trucks'),ser('y','#64748b','yard')]))}${P('Throughput (cum. pallets)',L([ser('rc','#1a9a8f','received'),ser('dp','#2e9d5b','dispatched')]))}${P('Backlog by stage',L([ser('stg','#2f6fb3','staging'),ser('pq','#e0a21b','to pick'),ser('kq','#d64545','to pack'),ser('ost','#2e9d5b','out stg')]))}${P('Utilization over time',L([ser('du','#2f6fb3','docks'),ser('fu','#1a9a8f','forklifts'),ser('wu','#64748b','workers')]))}</div><div class="row" style="margin-top:8px">${P('Bottleneck: wait-minutes by cause',B([['Trucks at gate',bl.gate,Math.max(1,...Object.values(bl)),'#e0a21b'],['Trucks in yard (no dock)',bl.yard,Math.max(1,...Object.values(bl)),'#d64545'],['Pallets awaiting putaway',bl.stg,Math.max(1,...Object.values(bl)),'#2f6fb3'],['Pallets awaiting pick',bl.pick,Math.max(1,...Object.values(bl)),'#e0a21b'],['Pallets awaiting pack',bl.pack,Math.max(1,...Object.values(bl)),'#e0a21b'],['Awaiting loading',bl.load,Math.max(1,...Object.values(bl)),'#1a9a8f'],['Dock idle, trucks waiting',bl.mis,Math.max(1,...Object.values(bl)),'#999']]))}${P('Yard & travel congestion heatmap',`<svg viewBox="0 0 45 30" style="width:100%;background:var(--p2)">${hm}</svg>`)}</div><div class="pn sc" style="margin-top:8px"><h4>Event log</h4>${T(['Time','Event'],S.log.slice(0,14).map(l=>tr_([fm(360+l.t),l.m])))}</div>`},
+sc:()=>{const ms=[['Avg turnaround (min)','tat',-1],['P90 turnaround (min)','p90',-1],['Avg queue length','q',-1],['Max yard occupancy','maxY',-1],['Dock utilization %','du',0,100],['Pallets/hr','pph',1],['Shipment delay rate %','dr',-1],['Forklift utilization %','fu',0,100],['Est. cost ($)','cost',-1]],ks=Object.keys(SCN);
+const cell=(k,m,b)=>{const v=SCR[k][m[1]]*(m[3]||1),bv=SCR.A[m[1]]*(m[3]||1),d=v-bv,g=m[2]*d,cl=k=='A'||!m[2]||Math.abs(d)<.05?'':g>0?'#2e9d5b':'#d64545';return`${f1(v)}${k!='A'?` <small style="color:${cl}">${d>=0?'+':''}${f1(d)}</small>`:''}`};
+return`<div class="pn"><h4>Scenarios (full-shift headless runs, seed ${C.seed}; baseline = current settings)</h4>${ks.map(k=>`<button data-a="scn:${k}">${SCN[k][0]}</button>`).join(' ')} <button class="pr" data-a="scnall">Run all</button> <button data-a="scnload:${''}">Load scenario into live sim…</button>${ks.map(k=>`<button data-a="scnload:${k}">▶ ${k}</button>`).join('')}<div class="note">Simulation assumptions, not operational data. Cost uses assumed rates ($18/h worker, $10/h forklift, $30/h dock, $1/min truck wait, $120 per late shipment). Results are not validated against real-world performance.</div></div><div class="pn" style="margin-top:8px">${T(['Metric',...ks.map(k=>SCN[k][0])],ms.map(m=>tr_([m[0],...ks.map(k=>SCR[k]?cell(k,m):'—')])))}</div>`},
+st:()=>{const i=(k,l,a,b,s,rs)=>`<label>${l}${rs?' ↻':''} <input type="range" data-k="${k}" min="${a}" max="${b}" step="${s}" value="${C[k]}"><b>${C[k]}</b></label>`;
+return`<div class="row">${P('Demand',i('rate','Trucks per hour',1,20,1,1)+i('inb','Inbound share %',10,90,5)+i('peak','Peak multiplier (min 120–240)',1,4,.5,1)+`<label>Appointment slots ↻ <input type="checkbox" data-k="appt" ${C.appt?'checked':''}></label>`+i('ppt','Pallets per truck',4,24,1))}${P('Capacity',i('docks','Loading docks',2,8,1,1)+i('yard','Yard capacity',4,24,1)+i('fk','Forklifts',1,10,1)+i('cap','Storage capacity (pallets)',120,480,20)+i('w0','Receiving workers',1,10,1)+i('w1','Pickers',1,10,1)+i('w2','Packers',1,10,1)+i('w3','Dispatch staff',1,10,1))}${P('Run',i('unl','Unload min / pallet',.5,4,.1)+i('sla','Dwell SLA (min)',45,180,5)+i('dur','Duration (min)',120,960,60)+`<label>Random seed ↻ <input type="number" data-k="seed" value="${C.seed}" style="width:70px"></label><button class="pr" data-a="reset">Apply & Reset</button><div class="note">↻ = needs Reset to take effect. Everything else applies live. Same seed + settings reproduces identical results.</div>`)}</div>`}};
+const SCN={A:['A · Baseline',c=>({})],B:['B · Peak hour',c=>({peak:2.5})],C:['C · +1 dock',c=>({docks:Math.min(8,c.docks+1)})],D:['D · Appointments',c=>({appt:1})],E:['E · +2 forklifts',c=>({fk:c.fk+2})],F:['F · Reallocate staff',c=>({w0:c.w0+1,w1:Math.max(1,c.w1-1)})]};
+const TABS=[['ov','Operations Overview','◧'],['lw','Live Warehouse','▣'],['tm','Truck Management','▭'],['ds','Dock Scheduling','▤'],['iv','Inventory','▦'],['rc','Receiving','⇣'],['pp','Picking & Packing','✓'],['dp','Dispatch','⇡'],['wf','Workforce & Equipment','☷'],['an','Analytics','≋'],['sc','Scenario Simulation','⚑'],['st','Settings','⚙']];
+const cv=document.createElement('canvas');cv.width=W;cv.height=HT;const g=cv.getContext('2d');
+function render(f){const v=$('#view'),ae=document.activeElement;if(!f&&ae&&v.contains(ae)&&/INPUT|SELECT/.test(ae.tagName))return;cv.remove();v.innerHTML=V[tab]();const m=$('#ms');if(m)m.appendChild(cv);
+$('#nav').innerHTML='<b>▪ WAREHOUSE OPS</b>'+TABS.map(t=>`<a class="${t[0]==tab?'on':''}" data-a="tab:${t[0]}">${t[2]} ${t[1]}</a>`).join('')}
+function hd(){const k=K_(),n=Object.keys(S.alk).length,cr=S.al.filter(a=>a.st=='Active'&&a.sev=='Critical').length,done=S.t>=C.dur;
+$('#h1').textContent=fm(360+S.t)+' (t+'+Math.floor(S.t)+'m)';$('#h2').innerHTML=done?'COMPLETE':run?'<span style="color:#2e9d5b">RUNNING</span>':'PAUSED';
+$('#h3').textContent=S.tr.filter(x=>x.dir=='IN').length+' active / '+S.done.filter(x=>x.dir=='IN').length+' done';$('#h4').textContent=S.tr.filter(x=>x.dir=='OUT').length+' active / '+S.done.filter(x=>x.dir=='OUT').length+' done';
+$('#h5').innerHTML=`<span style="color:${cr?'#d64545':'#e0a21b'}">${n} active (${cr} critical)</span>`;$('#b1').textContent=run?'Pause':'Start';
+const c=[['Trucks on site',k.on,0],['Trucks waiting',k.wt,k.wt>5],['Docks occupied',k.dk+'/'+k.N,0],['Avg turnaround',f1(k.tat)+' m',k.tat>C.sla],['Inbound pallets/h',f1(k.inT),0],['Outbound pallets/h',f1(k.outT),0],['Storage utilization',pc(k.util),k.util>.9],['Delayed shipments',k.del,k.del>0]];
+$('#kpi').innerHTML=c.map(x=>`<div class="k"><small>${x[0]}</small><b style="color:${x[2]?'#d64545':'inherit'}">${x[1]}</b></div>`).join('')}
+function reset(){S=newSim(C);sel='';acc=0;run=0;render(1);hd()}
+function live(){S.setF(C.fk);[0,1,2,3].forEach(i=>S.setW(i,C['w'+i]));S.lc.forEach(l=>l.cap=Math.max(1,Math.round(C.cap/60)))}
+function act(s){const[k,a,b]=s.split(':');
+if(k=='tab'){tab=a;render(1)}else if(k=='run'){if(S.t<C.dur)run=!run;hd()}else if(k=='reset')reset();else if(k=='step'){for(let i=0;i<50;i++)S.step(.1);render(1);hd()}
+else if(k=='tr'){if(a=='add')S.spawn({s:null},b);else{const x=S.tr.find(x=>x.id==b);if(x)x.pri=1}render(1)}
+else if(k=='dk'){const d=S.dk[a];if(b=='blk')d.man=d.man?0:1;else d.mt=30;render(1)}
+else if(k=='fk'){const f=S.fk[a];if(f)f.man=f.man?0:1;render(1)}
+else if(k=='lc'){const l=S.lc.find(l=>l.id==a);if(b=='blk')l.blk=l.blk?0:1;else l.ds=0;render(1)}
+else if(k=='sg'){C.strat=a;render(1)}else if(k=='ly'){LY[a]=!LY[a];render(1)}
+else if(k=='cmp'){CMP={};STR.forEach(s=>CMP[s]=runSim({...C,strat:s}));render(1)}
+else if(k=='scn'){SCR.A=SCR.A||runSim({...C});SCR[a]=runSim({...C,...SCN[a][1](C)});render(1)}
+else if(k=='scnall'){Object.keys(SCN).forEach(a=>SCR[a]=runSim({...C,...SCN[a][1](C)}));render(1)}
+else if(k=='scnload'&&a){C={...C,...SCN[a][1](C)};reset()}}
+document.addEventListener('click',e=>{const a=e.target.closest('[data-a]'),s=e.target.closest('[data-s]');if(a)act(a.dataset.a);else if(s){sel=s.dataset.s;render(1)}});
+document.addEventListener('input',e=>{const t=e.target;if(t.id=='sp'){spd=+t.value;return}const k=t.dataset.k;if(!k)return;const v=t.type=='checkbox'?+t.checked:t.tagName=='SELECT'?t.value:+t.value;C[k]=v;if(t.nextElementSibling&&t.nextElementSibling.tagName=='B')t.nextElementSibling.textContent=v;live()});
+cv.onclick=e=>{if(mv_){mv_=0;return}const r=cv.getBoundingClientRect(),mx=(e.clientX-r.left)*W/r.width,my=(e.clientY-r.top)*HT/r.height;
+if(LY.v3){const d3=(o,z,rad)=>{const p=P3(o.x,o.y,z);return Math.hypot(p[0]-mx,p[1]-my)<rad*ZM};let q;
+if(q=S.tr.find(o=>d3(o,8,14)))sel='truck:'+q.id;else if(q=S.fk.find(o=>d3(o,4,10)))sel='fk:'+q.i;else if(q=S.dk.find(d=>d3({x:196,y:d.y},6,12)))sel='dock:'+q.i;else if(q=S.lc.find(l=>d3({x:l.x+16,y:l.y+24},10,16)))sel='loc:'+q.id;else return;render(1);return}
+const h=(o,d)=>Math.hypot(o.x-mx,o.y-my)<d;let x;
+if(x=S.tr.find(o=>h(o,16)))sel='truck:'+x.id;else if(x=S.fk.find(o=>h(o,10)))sel='fk:'+x.i;else if(x=S.dk.find(d=>mx>186&&mx<212&&Math.abs(d.y-my)<16))sel='dock:'+x.i;else if(x=S.lc.find(l=>mx>=l.x&&mx<l.x+32&&my>=l.y&&my<l.y+48))sel='loc:'+x.id;else if(mx<190&&my>30&&my<470)sel='zone:yard';else if(mx>212&&mx<275&&my>40&&my<490)sel='zone:stg';else return;render(1)};
+const R_=(x,y,w,h,f,s)=>{if(f){g.fillStyle=f;g.fillRect(x,y,w,h)}if(s){g.strokeStyle=s;g.lineWidth=1;g.strokeRect(x+.5,y+.5,w,h)}},TX=(s,x,y,c='#64748b',z=10)=>{g.fillStyle=c;g.font=z+'px Inter,Arial';g.fillText(s,x,y)};
+function draw2d(){g.clearRect(0,0,W,HT);R_(0,0,W,HT,'#f3f5f8');R_(8,30,182,440,'#eaeef3','#c9d1dc');TX('WAITING YARD',14,44);R_(25,470,150,130,'#dfe5ec');R_(196,30,694,540,'#fff','#9aa7b8');
+for(let i=0;i<C.yard;i++)R_(SX(i)-14,SY(i)-7,28,14,null,'#d5dce5');
+R_(30,478,20,14,'#9aa7b8');R_(140,478,20,14,'#9aa7b8');TX('ENTRY',28,505);TX('EXIT',140,505);
+R_(212,40,62,210,'#eef3fa','#bcd0e8');TX('STAGING',217,262,'#2f6fb3',9);R_(212,270,62,214,'#edf7f1','#bfdccb');TX('OUT STAGING',214,498,'#2e9d5b',9);
+[0,1,2].forEach(z=>TX(['ZONE A · FAST','ZONE B','ZONE C'][z],305,64+z*150,'#64748b',9));
+if(LY.routes){g.strokeStyle='#2f6fb355';g.setLineDash([4,4]);g.beginPath();g.moveTo(285,46);g.lineTo(285,525);[46,196,346].forEach(y=>{g.moveTo(285,y);g.lineTo(650,y)});g.stroke();g.setLineDash([])}
+g.strokeStyle='#2e9d5b88';g.setLineDash([2,3]);g.beginPath();g.moveTo(668,40);g.lineTo(668,555);g.stroke();g.setLineDash([]);TX('walkway',672,552,'#2e9d5b',9);
+R_(690,400,190,150,'rgba(214,69,69,.07)','#d64545');TX('RESTRICTED · CHARGING',700,418,'#d64545',9);R_(690,60,180,100,'#f4f7fa','#cfd7e1');TX('PACKING STATIONS',698,74,'#64748b',9);for(let i=0;i<4;i++)R_(698+i*42,84,34,30,'#e3e9f0','#b6c1cf');
+for(const l of S.lc){const f=l.n.length/l.cap;R_(l.x,l.y,32,48,l.blk?'#c5ccd5':f>=.95?'#f1c97a':`rgba(26,154,143,${.08+f*.6})`,l.ds?'#d64545':'#d5dce5');TX(l.n.length+'',l.x+11,l.y+28,'#1f2933',9)}
+S.stg.forEach((p,i)=>R_(216+(i%6)*9,50+(i/6|0)*10,7,7,p.fk?'#2f6fb3':'#1a9a8f'));S.ost.forEach((p,i)=>R_(216+(i%6)*9,280+(i/6|0)*10,7,7,'#2e9d5b'));
+for(const d of S.dk){const h=Math.min(30,440/S.dk.length-6);R_(188,d.y-h/2,16,h,DC[d.st]);TX(d.id+' '+d.k,160,d.y+h/2+9,'#64748b',8)}
+if(LY.heat){const mx=Math.max(1,...S.heat);for(let i=0;i<1350;i++){const v=S.heat[i];if(v>mx*.05){g.fillStyle=`rgba(214,69,69,${v/mx*.5})`;g.fillRect(i%45*20,(i/45|0)*20,20,20)}}}
+for(const w of S.wk){g.beginPath();g.arc(w.x,w.y,3.5,0,7);g.fillStyle=w.job?['#2f6fb3','#1a9a8f','#1a9a8f','#2e9d5b'][w.role]:'#b6bfca';g.fill()}
+for(const x of S.tr){g.save();g.translate(x.x,x.y);g.rotate(x.h);R_(-14,-6,28,12,sc(x));R_(8,-5,6,10,'#0003');g.restore();TX(x.id.slice(2),x.x-9,x.y-10,'#1f2933',8)}
+for(const f of S.fk){g.save();g.translate(f.x,f.y);g.rotate(f.h);R_(-6,-4,12,8,f.off?'#d64545':f.q.length?'#1a9a8f':'#9aa4b0');g.restore();if(f.cy)R_(f.x-3,f.y-3,6,6,'#e0a21b')}
+const gq=S.tr.filter(x=>x.st=='gq').length;if(gq>3)TX('+'+(gq-3)+' queued outside gate',20,594,'#e0a21b',10);
+const b=sel.split(':');if(b[0]=='truck'){const x=S.tr.find(o=>o.id==b[1]);if(x){g.strokeStyle='#1e3a5f';g.lineWidth=2;g.strokeRect(x.x-17,x.y-10,34,20)}}
+if(b[0]=='loc'){const l=S.lc.find(o=>o.id==b[1]);if(l){g.strokeStyle='#1e3a5f';g.lineWidth=2;g.strokeRect(l.x,l.y,32,48)}}
+if(b[0]=='dock'){const d=S.dk[b[1]];if(d){g.strokeStyle='#1e3a5f';g.lineWidth=2;g.strokeRect(186,d.y-16,20,32)}}}
+let YAW=0,ZM=1,mv_=0,dr=null;
+const P3=(x,y,z=0)=>{const a=Math.cos(YAW),b=Math.sin(YAW),dx=x-450,dy=y-300,u=dx*a-dy*b,v=dx*b+dy*a,s=.58*ZM;return[450+(u-v)*.866*s,335+(u+v)*.5*s-z*s,u+v]};
+const sh=(c,f)=>{if(c[0]!='#')return c;return'rgb('+[1,3,5].map(i=>Math.min(255,parseInt(c.slice(i,i+2),16)*f)|0)+')'};
+function poly(a,f,s){g.beginPath();a.forEach((p,i)=>i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1]));g.closePath();if(f){g.fillStyle=f;g.fill()}if(s){g.strokeStyle=s;g.lineWidth=1;g.stroke()}}
+function box(cx,cy,w,d,h,z,col,ang=0){const ca=Math.cos(ang),sa=Math.sin(ang),Lc=[[-w/2,-d/2],[w/2,-d/2],[w/2,d/2],[-w/2,d/2]].map(([a,b])=>[cx+a*ca-b*sa,cy+a*sa+b*ca]),c0=P3(cx,cy,z)[2];
+for(let i=0;i<4;i++){const A=Lc[i],Bq=Lc[(i+1)%4];if(P3((A[0]+Bq[0])/2,(A[1]+Bq[1])/2,z)[2]>c0)poly([P3(A[0],A[1],z),P3(Bq[0],Bq[1],z),P3(Bq[0],Bq[1],z+h),P3(A[0],A[1],z+h)],sh(col,i%2?.6:.8))}
+poly(Lc.map(p=>P3(p[0],p[1],z+h)),sh(col,1.1),'rgba(0,0,0,.14)')}
+const PAL=['','#2f6fb3','#1a9a8f','#6d7f99'];
+function draw3d(){const T=performance.now()/1000;if(LY.orb)YAW+=.003;
+const gr=g.createLinearGradient(0,0,0,HT);gr.addColorStop(0,'#eef2f7');gr.addColorStop(1,'#d9e1ea');g.fillStyle=gr;g.fillRect(0,0,W,HT);
+const fl=(x,y,w,h,z,f,s)=>poly([[x,y],[x+w,y],[x+w,y+h],[x,y+h]].map(p=>P3(p[0],p[1],z)),f,s),
+T3=(s,x,y,z,c='#475569',n=9)=>{const p=P3(x,y,z);g.fillStyle=c;g.font=n*Math.max(.9,ZM)+'px Inter,Arial';g.fillText(s,p[0]-g.measureText(s).width/2,p[1])};
+fl(-60,-40,1020,700,-1,'#e3e8ee');fl(8,30,182,440,0,'#e9eef4','#c3ccd8');fl(25,470,150,140,0,'#cdd4de');fl(196,30,694,540,0,'#fbfcfe','#9aa7b8');
+fl(212,40,62,210,.5,'#e1ebf8');fl(212,270,62,214,.5,'#dff2e6');fl(690,60,180,100,.5,'#eef2f7','#cfd7e1');fl(690,400,190,150,.5,'rgba(214,69,69,.13)','#d64545');
+for(let i=0;i<C.yard;i++)fl(SX(i)-14,SY(i)-7,28,14,.5,null,'#c3ccd8');
+box(543,30,694,4,14,0,'#c7cfda');box(196,300,4,540,14,0,'#c7cfda');
+if(LY.routes){g.strokeStyle='#2f6fb366';g.setLineDash([4,4]);g.beginPath();let p=P3(285,46,1);g.moveTo(p[0],p[1]);p=P3(285,525,1);g.lineTo(p[0],p[1]);[46,196,346].forEach(y=>{p=P3(285,y,1);g.moveTo(p[0],p[1]);p=P3(650,y,1);g.lineTo(p[0],p[1])});g.stroke();g.setLineDash([])}
+if(LY.heat){const mx=Math.max(1,...S.heat);for(let i=0;i<1350;i++){const v=S.heat[i];if(v>mx*.05)fl(i%45*20,(i/45|0)*20,20,20,1,`rgba(214,69,69,${(v/mx*.55).toFixed(2)})`)}}
+for(const f of S.fk)if(f.q.length&&f.q[0].pts.length){g.strokeStyle='#1a9a8f99';g.lineWidth=1.5;g.setLineDash([5,4]);g.lineDashOffset=-T*25;g.beginPath();let p=P3(f.x,f.y,1);g.moveTo(p[0],p[1]);f.q[0].pts.forEach(q=>{p=P3(q[0],q[1],1);g.lineTo(p[0],p[1])});g.stroke();g.setLineDash([])}
+T3('WAITING YARD',99,40,0,'#64748b');T3('ENTRY',40,500,0);T3('EXIT',150,500,0);T3('STAGING',243,262,1,'#2f6fb3',8);T3('OUT STAGING',243,498,1,'#2e9d5b',8);T3('PACKING',780,70,1);T3('RESTRICTED · CHARGING',785,420,1,'#d64545',8);[0,1,2].forEach(z=>T3(['ZONE A · FAST MOVERS','ZONE B','ZONE C'][z],470,62+z*150,0));
+const O=[],ad=(x,y,f)=>O.push([P3(x,y,0)[2],f]);
+S.lc.forEach(l=>{const cx=l.x+16,cy=l.y+24;ad(cx,cy,()=>{box(cx,cy,32,48,2,0,l.blk?'#9aa4b0':'#d3dbe6');l.n.forEach((p,i)=>box(cx,cy,26,40,6,2+i*7,PAL[SK[p.s][2]]));if(l.ds){g.globalAlpha=.4+.4*Math.sin(T*6);fl(l.x,l.y,32,48,3,null,'#d64545');g.globalAlpha=1}})});
+S.dk.forEach(d=>ad(196,d.y,()=>{box(196,d.y,14,Math.min(30,440/S.dk.length-6),16,0,DC[d.st]);T3(d.id+' '+d.k,222,d.y,18,'#334155',8)}));
+S.stg.forEach((p,i)=>{const cx=220+(i%6)*9,cy=53+(i/6|0)*10;ad(cx,cy,()=>box(cx,cy,7,7,6,1,p.fk?'#2f6fb3':'#1a9a8f'))});
+S.ost.forEach((p,i)=>{const cx=220+(i%6)*9,cy=283+(i/6|0)*10;ad(cx,cy,()=>box(cx,cy,7,7,6,1,'#2e9d5b'))});
+for(let i=0;i<4;i++)ad(715+i*42,99,()=>box(715+i*42,99,34,30,10,1,'#c9d4e2'));
+ad(40,485,()=>box(40,485,20,14,18,0,'#9aa7b8'));ad(150,485,()=>box(150,485,20,14,18,0,'#9aa7b8'));
+S.wk.forEach(w=>ad(w.x,w.y,()=>{const a=P3(w.x,w.y,0),b=P3(w.x,w.y,9);g.strokeStyle=w.job?['#2f6fb3','#1a9a8f','#1a9a8f','#2e9d5b'][w.role]:'#9aa4b0';g.lineWidth=2.5;g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.stroke();g.beginPath();g.arc(b[0],b[1]-2,2.5*ZM,0,7);g.fillStyle='#334155';g.fill()}));
+S.tr.forEach(x=>ad(x.x,x.y,()=>{const c=Math.cos(x.h),s=Math.sin(x.h),col=sc(x);box(x.x+4,x.y+4,30,14,.2,0,'rgba(0,0,0,.15)',x.h);box(x.x-c*4,x.y-s*4,20,12,13,2,col,x.h);box(x.x+c*10,x.y+s*10,8,12,9,2,'#33445a',x.h);
+if(['gq','chk','yd'].includes(x.st)){const p=P3(x.x,x.y,0);g.globalAlpha=.35+.35*Math.sin(T*4);g.strokeStyle='#e0a21b';g.lineWidth=2;g.beginPath();g.ellipse(p[0],p[1],15*ZM,7.5*ZM,0,0,7);g.stroke();g.globalAlpha=1}
+if(S.t-x.arr>C.sla){const p=P3(x.x,x.y,27+Math.sin(T*6)*2);g.fillStyle='#d64545';g.beginPath();g.arc(p[0],p[1],3*ZM,0,7);g.fill()}
+T3(x.id.slice(2),x.x,x.y,20,'#1f2933',8)}));
+S.fk.forEach(f=>ad(f.x,f.y,()=>{const c=Math.cos(f.h),s=Math.sin(f.h);box(f.x,f.y,12,8,6,0,f.off?'#d64545':f.q.length?'#1a9a8f':'#9aa4b0',f.h);box(f.x+c*8,f.y+s*8,4,7,10,0,'#334155',f.h);if(f.cy)box(f.x+c*9,f.y+s*9,8,8,6,1,'#e0a21b',f.h)}));
+O.sort((a,b)=>a[0]-b[0]).forEach(o=>o[1]());
+const b=sel.split(':');let e=null;if(b[0]=='truck')e=S.tr.find(o=>o.id==b[1]);else if(b[0]=='fk')e=S.fk[b[1]];else if(b[0]=='dock'){const d=S.dk[b[1]];e=d&&{x:196,y:d.y}}else if(b[0]=='loc'){const l=S.lc.find(o=>o.id==b[1]);e=l&&{x:l.x+16,y:l.y+24}}
+if(e){const p=P3(e.x,e.y,0);g.strokeStyle='#1e3a5f';g.lineWidth=2;g.beginPath();g.ellipse(p[0],p[1],20*ZM,10*ZM,0,0,7);g.stroke()}
+const gq=S.tr.filter(x=>x.st=='gq').length;g.fillStyle='#64748b';g.font='10px Inter,Arial';g.fillText('3D view · drag to rotate · wheel to zoom'+(gq>3?' · +'+(gq-3)+' queued outside gate':''),10,16)}
+function draw(){LY.v3?draw3d():draw2d()}
+cv.onmousedown=e=>{dr=[e.clientX,YAW];mv_=0};addEventListener('mouseup',()=>dr=null);
+cv.onmousemove=e=>{if(dr&&LY.v3){const d=e.clientX-dr[0];if(Math.abs(d)>4)mv_=1;if(mv_)YAW=dr[1]+d*.006}};
+cv.onwheel=e=>{if(!LY.v3)return;e.preventDefault();ZM=Math.max(.6,Math.min(2.2,ZM*(e.deltaY<0?1.1:.9)))};
+let last=0;function loop(ts){const dt=Math.min((ts-last)/1000,.1);last=ts;if(run){acc+=dt*spd*2;while(acc>=.1){S.step(.1);acc-=.1;if(S.t>=C.dur){run=0;hd();break}}}draw();requestAnimationFrame(loop)}
+render(1);hd();requestAnimationFrame(loop);setInterval(()=>{if(tab!='st'&&tab!='sc')render();hd()},600);
+</script></body></html>
